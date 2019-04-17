@@ -59,13 +59,13 @@ namespace Microsoft.AspNetCore.SignalR.Protocol
         /// <param name="output">The output writer.</param>
         public static void WriteRequestMessage(HandshakeRequestMessage requestMessage, IBufferWriter<byte> output)
         {
-            var writer = new Utf8JsonWriter(output, new JsonWriterState(new JsonWriterOptions() { SkipValidation = true }));
+            using var writer = new Utf8JsonWriter(output, new JsonWriterOptions() { SkipValidation = true });
 
             writer.WriteStartObject();
-            writer.WriteString(ProtocolPropertyNameBytes, requestMessage.Protocol, escape: false);
-            writer.WriteNumber(ProtocolVersionPropertyNameBytes, requestMessage.Version, escape: false);
+            writer.WriteString(ProtocolPropertyNameBytes, requestMessage.Protocol);
+            writer.WriteNumber(ProtocolVersionPropertyNameBytes, requestMessage.Version);
             writer.WriteEndObject();
-            writer.Flush(isFinalBlock: true);
+            writer.Flush();
 
             TextMessageFormatter.WriteRecordSeparator(output);
         }
@@ -77,7 +77,7 @@ namespace Microsoft.AspNetCore.SignalR.Protocol
         /// <param name="output">The output writer.</param>
         public static void WriteResponseMessage(HandshakeResponseMessage responseMessage, IBufferWriter<byte> output)
         {
-            var writer = new Utf8JsonWriter(output, new JsonWriterState(new JsonWriterOptions() { SkipValidation = true }));
+            using var writer = new Utf8JsonWriter(output, new JsonWriterOptions() { SkipValidation = true });
 
             writer.WriteStartObject();
             if (!string.IsNullOrEmpty(responseMessage.Error))
@@ -85,10 +85,10 @@ namespace Microsoft.AspNetCore.SignalR.Protocol
                 writer.WriteString(ErrorPropertyNameBytes, responseMessage.Error);
             }
 
-            writer.WriteNumber(MinorVersionPropertyNameBytes, responseMessage.MinorVersion, escape: false);
+            writer.WriteNumber(MinorVersionPropertyNameBytes, responseMessage.MinorVersion);
 
             writer.WriteEndObject();
-            writer.Flush(isFinalBlock: true);
+            writer.Flush();
 
             TextMessageFormatter.WriteRecordSeparator(output);
         }
