@@ -27,6 +27,7 @@ namespace TestServer
                 options.AddPolicy("AllowAll", _ => { /* Controlled below */ });
             });
             services.AddServerSideBlazor();
+            services.AddBlazorHosting<BasicTestApp.Startup>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -49,11 +50,12 @@ namespace TestServer
                     .AllowCredentials();
             });
 
-            app.UseRouting();
 
             // Mount the server-side Blazor app on /subdir
             app.Map("/subdir", subdirApp =>
             {
+                subdirApp.UseStaticFiles();
+
                 // The following two lines are equivalent to:
                 //     endpoints.MapComponentsHub<Index>();
                 //
@@ -66,12 +68,11 @@ namespace TestServer
                 subdirApp.UseEndpoints(endpoints =>
                 {
                     endpoints.MapHub<ComponentHub>(ComponentHub.DefaultPath).AddComponent<Index>(selector: "root");
+                    endpoints.MapFallbackToClientSideBlazor<BasicTestApp.Startup>();
                 });
-
-                subdirApp.MapWhen(
-                    ctx => ctx.Features.Get<IEndpointFeature>()?.Endpoint == null,
-                    blazorBuilder => blazorBuilder.UseBlazor<BasicTestApp.Startup>());
             });
+
+            app.UseRouting();
 
             app.UseEndpoints(endpoints =>
             {

@@ -14,6 +14,7 @@ namespace HostedInAspNet.Server
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddBlazorHosting<Client.Program>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -25,7 +26,14 @@ namespace HostedInAspNet.Server
                 app.UseBlazorDebugging();
             }
 
-            app.UseBlazor<Client.Program>();
+            app.UseStaticFiles();
+
+            app.UseRouting();
+
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapFallbackToClientSideBlazor<Client.Program>();
+            });
         }
     }
 }
