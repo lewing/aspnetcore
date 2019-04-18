@@ -5,10 +5,6 @@ using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 
-// Microsoft.AspNetCore.Http.Abstractions
-[assembly: TypeForwardedTo(typeof(IAuthorizeData))]
-[assembly: TypeForwardedTo(typeof(IAllowAnonymous))]
-
 // Microsoft.AspNetCore.Authorization
 [assembly: TypeForwardedTo(typeof(IPolicyEvaluator))]
 [assembly: TypeForwardedTo(typeof(PolicyAuthorizationResult))]
