@@ -34,8 +34,7 @@ async function boot(options?: any) {
 
   // Determine the URLs of the assemblies we want to load, then begin fetching them all
   const loadAssemblyUrls = [bootConfig.main]
-    .concat(bootConfig.assemblyReferences)
-    .map(filename => `_framework/_bin/${filename}`);
+    .concat(bootConfig.assemblyReferences);
 
   try {
     await platform.start(loadAssemblyUrls);

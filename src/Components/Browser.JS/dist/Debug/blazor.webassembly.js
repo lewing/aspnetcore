@@ -416,8 +416,7 @@ function boot(options) {
                         console.info('Blazor is running in dev mode without IL stripping. To make the bundle size significantly smaller, publish the application or see https://go.microsoft.com/fwlink/?linkid=870414');
                     }
                     loadAssemblyUrls = [bootConfig.main]
-                        .concat(bootConfig.assemblyReferences)
-                        .map(function (filename) { return "_framework/_bin/" + filename; });
+                        .concat(bootConfig.assemblyReferences);
                     _a.label = 2;
                 case 2:
                     _a.trys.push([2, 4, , 5]);
@@ -657,7 +656,6 @@ function launchDebugger() {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var Url_1 = __webpack_require__(/*! ../Url */ "./Platform/Url.ts");
 var MonoDebugger_1 = __webpack_require__(/*! ./MonoDebugger */ "./Platform/Mono/MonoDebugger.ts");
 var assemblyHandleCache = {};
 var typeHandleCache = {};
@@ -819,22 +817,8 @@ function createEmscriptenModuleInstance(loadAssemblyUrls, onReady, onError) {
     var suppressMessages = ['DEBUGGING ENABLED'];
     module.print = function (line) { return (suppressMessages.indexOf(line) < 0 && console.log("WASM: " + line)); };
     module.printErr = function (line) { return console.error("WASM: " + line); };
-    module.preRun = [];
-    module.postRun = [];
-    module.preloadPlugins = [];
-    module.locateFile = function (fileName) {
-        switch (fileName) {
-            case 'mono.wasm': return wasmBinaryFile;
-            default: return fileName;
-        }
-    };
-    module.preRun.push(function () {
+    module.onRuntimeInitialized = function () {
         // By now, emscripten should be initialised enough that we can capture these methods for later use
-        var mono_wasm_add_assembly = Module.cwrap('mono_wasm_add_assembly', null, [
-            'string',
-            'number',
-            'number',
-        ]);
         assembly_load = Module.cwrap('mono_wasm_assembly_load', 'number', ['string']);
         find_class = Module.cwrap('mono_wasm_assembly_find_class', 'number', [
             'number',
@@ -853,39 +837,19 @@ function createEmscriptenModuleInstance(loadAssemblyUrls, onReady, onError) {
         ]);
         mono_string_get_utf8 = Module.cwrap('mono_wasm_string_get_utf8', 'number', ['number']);
         mono_string = Module.cwrap('mono_wasm_string_from_js', 'number', ['string']);
-        MONO.loaded_files = [];
-        loadAssemblyUrls.forEach(function (url) {
-            var filename = Url_1.getFileNameFromUrl(url);
-            var runDependencyId = "blazor:" + filename;
-            addRunDependency(runDependencyId);
-            asyncLoad(url).then(function (data) {
-                var heapAddress = Module._malloc(data.length);
-                var heapMemory = new Uint8Array(Module.HEAPU8.buffer, heapAddress, data.length);
-                heapMemory.set(data);
-                mono_wasm_add_assembly(filename, heapAddress, data.length);
-                MONO.loaded_files.push(toAbsoluteUrl(url));
-                removeRunDependency(runDependencyId);
-            }, function (errorInfo) {
-                // If it's a 404 on a .pdb, we don't want to block the app from starting up.
-                // We'll just skip that file and continue (though the 404 is logged in the console).
-                // This happens if you build a Debug build but then run in Production environment.
-                var isPdb404 = errorInfo instanceof XMLHttpRequest
-                    && errorInfo.status === 404
-                    && filename.match(/\.pdb$/);
-                if (!isPdb404) {
-                    onError(errorInfo);
-                }
-                removeRunDependency(runDependencyId);
-            });
-        });
-    });
-    module.postRun.push(function () {
-        var load_runtime = Module.cwrap('mono_wasm_load_runtime', null, ['string', 'number']);
-        load_runtime(appBinDirName, MonoDebugger_1.hasDebuggingEnabled() ? 1 : 0);
-        MONO.mono_wasm_runtime_is_ready = true;
-        attachInteropInvoker();
-        onReady();
-    });
+        MONO.mono_wasm_set_runtime_options(["--trace"]);
+        MONO.mono_load_runtime_and_bcl(appBinDirName, "_framework/_bin", false, //hasDebuggingEnabled() ? true : false,
+        loadAssemblyUrls, function () {
+            attachInteropInvoker();
+            onReady();
+        }, null);
+    };
+    module.locateFile = function (fileName) {
+        switch (fileName) {
+            case 'mono.wasm': return wasmBinaryFile;
+            default: return fileName;
+        }
+    };
     return module;
 }
 var anchorTagForAbsoluteUrlConversions = document.createElement('a');
