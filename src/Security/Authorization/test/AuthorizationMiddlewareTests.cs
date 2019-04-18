@@ -416,7 +416,6 @@ namespace Microsoft.AspNetCore.Authorization.Test
             serviceCollection.AddOptions();
             serviceCollection.AddLogging();
             serviceCollection.AddAuthorization();
-            serviceCollection.AddAuthorizationPolicyEvaluator();
             registerServices?.Invoke(serviceCollection);
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
