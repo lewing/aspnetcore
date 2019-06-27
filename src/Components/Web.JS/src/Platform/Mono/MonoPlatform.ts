@@ -214,6 +214,7 @@ function createEmscriptenModuleInstance(loadAssemblyUrls: string[], onReady: () 
     ]);
     mono_string_get_utf8 = Module.cwrap('mono_wasm_string_get_utf8', 'number', ['number']);
     mono_string = Module.cwrap('mono_wasm_string_from_js', 'number', ['string']);
+    MONO.mono_wasm_setenv("MONO_URI_DOTNETRELATIVEORABSOLUTE","true");
     MONO.mono_wasm_set_runtime_options (["--trace"]);
     MONO.mono_load_runtime_and_bcl (
       appBinDirName,
