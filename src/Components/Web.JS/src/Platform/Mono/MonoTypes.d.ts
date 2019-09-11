@@ -9,7 +9,8 @@ declare namespace Module {
   // These should probably be in @types/emscripten
   function FS_createPath(parent, path, canRead, canWrite);
   function FS_createDataFile(parent, name, data, canRead, canWrite, canOwn);
-  function onRuntimeInitialized(cb: () => any): void;
+  function onRuntimeInitialized(): void;
+  var aot_profile_data: Uint8Array;
 }
 
 // Emscripten declares these globals
@@ -26,6 +27,7 @@ declare namespace MONO {
   var loaded_files: string[];
   var mono_wasm_runtime_is_ready: boolean;
   function mono_wasm_setenv(name: string, value: string): void;
-  function mono_load_runtime_and_bcl(vfs_prefix: string, deploy_prefix: string, enable_debugging: boolean, file_list: string[], loaded_cb: any, fetch_file_cb: any): void;
+  function mono_load_runtime_and_bcl(vfs_prefix: string, deploy_prefix: string, enable_debugging: boolean, file_list: string[], loaded_cb: () => any, fetch_file: null | ((resource: any) => Promise<any>)): void;
   function mono_wasm_set_runtime_options(options: string[]): void;
+  function mono_wasm_init_aot_profiler(options: any): void;
 }

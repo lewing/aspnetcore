@@ -206,53 +206,51 @@ function addScriptTagsToDocument() {
 }
 
 function createEmscriptenModuleInstance(loadAssemblyUrls: string[], onReady: () => void, onError: (reason?: any) => void) {
-  const module = {} as typeof Module;
+  const module = {
+    print: line => (suppressMessages.indexOf(line) < 0 && console.log(`WASM: ${line}`)),
+    printErr: line => console.error(`WASM: ${line}`),
+    onRuntimeInitialized: () => {
+      // By now, emscripten should be initialised enough that we can capture these methods for later use
+      assembly_load = Module.cwrap('mono_wasm_assembly_load', 'number', ['string']);
+      find_class = Module.cwrap('mono_wasm_assembly_find_class', 'number', [
+        'number',
+        'string',
+        'string',
+      ]);
+      find_method = Module.cwrap('mono_wasm_assembly_find_method', 'number', [
+        'number',
+        'string',
+        'number',
+      ]);
+      invoke_method = Module.cwrap('mono_wasm_invoke_method', 'number', [
+        'number',
+        'number',
+        'number',
+      ]);
+      mono_string_get_utf8 = Module.cwrap('mono_wasm_string_get_utf8', 'number', ['number']);
+      mono_string = Module.cwrap('mono_wasm_string_from_js', 'number', ['string']);
+      MONO.mono_wasm_setenv("MONO_URI_DOTNETRELATIVEORABSOLUTE","true");
+      //MONO.mono_wasm_set_runtime_options (["--trace"]);
+      MONO.mono_load_runtime_and_bcl (
+        appBinDirName,
+        "_framework/_bin",
+        hasDebuggingEnabled() ? true : false,
+        loadAssemblyUrls,
+        () => {
+          attachInteropInvoker();
+          onReady();
+        },
+        null);
+    },
+    locateFile: fileName => {
+      switch (fileName) {
+        case 'mono.wasm': return wasmBinaryFile;
+        default: return fileName;
+      }
+    }
+  } as typeof Module;
   const wasmBinaryFile = '_framework/wasm/mono.wasm';
   const suppressMessages = ['DEBUGGING ENABLED'];
-
-  module.print = line => (suppressMessages.indexOf(line) < 0 && console.log(`WASM: ${line}`));
-  module.printErr = line => console.error(`WASM: ${line}`);
-
-  module.onRuntimeInitialized = () => {
-    // By now, emscripten should be initialised enough that we can capture these methods for later use
-    assembly_load = Module.cwrap('mono_wasm_assembly_load', 'number', ['string']);
-    find_class = Module.cwrap('mono_wasm_assembly_find_class', 'number', [
-      'number',
-      'string',
-      'string',
-    ]);
-    find_method = Module.cwrap('mono_wasm_assembly_find_method', 'number', [
-      'number',
-      'string',
-      'number',
-    ]);
-    invoke_method = Module.cwrap('mono_wasm_invoke_method', 'number', [
-      'number',
-      'number',
-      'number',
-    ]);
-    mono_string_get_utf8 = Module.cwrap('mono_wasm_string_get_utf8', 'number', ['number']);
-    mono_string = Module.cwrap('mono_wasm_string_from_js', 'number', ['string']);
-    MONO.mono_wasm_setenv("MONO_URI_DOTNETRELATIVEORABSOLUTE","true");
-    //MONO.mono_wasm_set_runtime_options (["--trace"]);
-    MONO.mono_load_runtime_and_bcl (
-      appBinDirName,
-      "_framework/_bin",
-      hasDebuggingEnabled() ? true : false,
-      loadAssemblyUrls,
-      () => {
-        attachInteropInvoker();
-        onReady();
-      },
-      null);
-  }
-  module.locateFile = fileName => {
-    switch (fileName) {
-      case 'mono.wasm': return wasmBinaryFile;
-      default: return fileName;
-    }
-  };
-
   return module;
 }
 
