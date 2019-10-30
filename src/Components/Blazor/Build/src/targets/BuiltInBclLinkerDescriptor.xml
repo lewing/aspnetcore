@@ -10,6 +10,11 @@
     <type fullname="System.Threading.WasmRuntime" />
   </assembly>
 
+  <assembly fullname="Mono.WebAssembly.Interop"/>
+  <assembly fullname="Microsoft.JSInterop"/>
+  <assembly fullname="Microsoft.AspNetCore.Blazor"/>
+  <assembly fullname="Microsoft.AspNetCore.Components"/>
+  <assembly fullname="Microsoft.AspNetCore.Components.Web"/>
   <assembly fullname="System">
     <!-- Without this, [Required(typeof(bool), "true", "true", ErrorMessage = "...")] fails -->
     <type fullname="System.ComponentModel.BooleanConverter" />

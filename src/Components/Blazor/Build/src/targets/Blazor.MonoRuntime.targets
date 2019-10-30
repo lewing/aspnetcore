@@ -423,9 +423,10 @@
     -->
     <ItemGroup>
       <_MonoBaseClassLibraryFolder Include="$(MonoBaseClassLibraryPath);$(MonoBaseClassLibraryFacadesPath)" />
-      <_BlazorAssembliesToLink Include="@(_BlazorDependencyInput->'-a &quot;%(Identity)&quot;')" />
+
       <_BlazorAssembliesToLink Include="@(IntermediateAssembly->'-a &quot;%(FullPath)&quot;')" />
       <_BlazorFolderLookupPaths Include="@(_MonoBaseClassLibraryFolder->'-d &quot;%(Identity)&quot;')" />
+      <_BlazorFolderLookupPaths Include="@(_BlazorDependencyInput->'-d &quot;%(RootDir)%(RelativeDir)&quot;')" />
       <_BlazorAssemblyDescriptorFiles
         Include="@(BlazorLinkerDescriptor->'-x &quot;%(FullPath)&quot;')" Condition="'@(BlazorLinkerDescriptor)' != ''" />
     </ItemGroup>
