@@ -112,4 +112,12 @@ internal static class TaskGenericsUtil
                 typeof(TcsResultSetter<>).MakeGenericType(resultType))!;
         });
     }
-}
+
+    internal static TackCompletionSource<TResult> CreateCompletionSourceAndAccessors<TResult>())
+    {
+        _cachedResultGetters.TryAdd(typeof(Task<TResult>), new TaskResultGetter<TResult>());
+        _cachedResultSetters.TryAdd(typeof(TaskCompletionSource<TResult>), new TcsResultSetter<TResult>());
+        return new TaskCompletionSource<TResult>();
+    }
+
+

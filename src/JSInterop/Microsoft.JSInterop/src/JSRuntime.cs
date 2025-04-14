@@ -129,7 +129,8 @@ public abstract partial class JSRuntime : IJSRuntime, IDisposable
         object?[]? args)
     {
         var taskId = Interlocked.Increment(ref _nextPendingTaskId);
-        var tcs = new TaskCompletionSource<TValue>();
+        var tcs = TaskGenericsUtil.CreateCompletionSourceAndAccessors<TValue>();
+
         if (cancellationToken.CanBeCanceled)
         {
             _cancellationRegistrations[taskId] = cancellationToken.Register(() =>
