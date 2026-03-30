@@ -58,10 +58,12 @@ public sealed class ApiConventionTypeAttribute : Attribute
             throw new ArgumentException(Resources.FormatApiConventionMustBeStatic(conventionType), nameof(conventionType));
         }
 
+        #pragma warning disable IL2070
         foreach (var method in conventionType.GetMethods(BindingFlags.Public | BindingFlags.Static))
         {
             var unsupportedAttributes = method.GetCustomAttributes(inherit: true)
                 .Where(attribute => !IsAllowedAttribute(attribute))
+        #pragma warning restore IL2070
                 .ToArray();
 
             if (unsupportedAttributes.Length == 0)

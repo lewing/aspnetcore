@@ -90,9 +90,11 @@ internal sealed class ActionEndpointFactory
                 // A route is applicable if:
                 // 1. It has a parameter (or default value) for 'required' non-null route value
                 // 2. It does not have a parameter (or default value) for 'required' null route value
+                #pragma warning disable IL2026
                 var updatedRoutePattern = _routePatternTransformer.SubstituteRequiredValues(route.Pattern, action.RouteValues);
                 if (updatedRoutePattern == null)
                 {
+                #pragma warning restore IL2026
                     continue;
                 }
 
@@ -133,11 +135,13 @@ internal sealed class ActionEndpointFactory
             // Subsitituting required values into an attribute route pattern should always succeed.
             var (resolvedRoutePattern, resolvedRouteValues) = ResolveDefaultsAndRequiredValues(action, attributeRoutePattern);
 
+            #pragma warning disable IL2026
             var updatedRoutePattern = _routePatternTransformer.SubstituteRequiredValues(resolvedRoutePattern, resolvedRouteValues);
             if (updatedRoutePattern == null)
             {
                 // This kind of thing can happen when a route pattern uses a *reserved* route value such as `action`.
                 // See: https://github.com/dotnet/aspnetcore/issues/14789
+            #pragma warning restore IL2026
                 var formattedRouteKeys = string.Join(", ", resolvedRouteValues.Keys.Select(k => $"'{k}'"));
                 throw new InvalidOperationException(
                     $"Failed to update the route pattern '{resolvedRoutePattern.RawText}' with required route values. " +
@@ -355,7 +359,9 @@ internal sealed class ActionEndpointFactory
         // MethodInfo *should* never be null given a ControllerActionDescriptor, but this is unenforced.
         if (controllerActionDescriptor?.MethodInfo is not null)
         {
+            #pragma warning disable IL2026
             EndpointMetadataPopulator.PopulateMetadata(controllerActionDescriptor.MethodInfo, builder);
+            #pragma warning restore IL2026
         }
 
         // Add action-specific metadata early so it has a low precedence

@@ -439,10 +439,12 @@ public static class DotNetDispatcher
         var exportedTypes = GetRequiredLoadedAssembly(assemblyKey).GetExportedTypes();
         foreach (var type in exportedTypes)
         {
+            #pragma warning disable IL2065
             foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static))
             {
                 if (method.ContainsGenericParameters || !method.IsDefined(typeof(JSInvokableAttribute), inherit: false))
                 {
+            #pragma warning restore IL2065
                     continue;
                 }
 

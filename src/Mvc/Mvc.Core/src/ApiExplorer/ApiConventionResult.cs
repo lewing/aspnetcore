@@ -57,11 +57,13 @@ public sealed class ApiConventionResult
     {
         foreach (var attribute in apiConventionAttributes)
         {
+            #pragma warning disable IL2075
             var conventionMethods = attribute.ConventionType.GetMethods(BindingFlags.Public | BindingFlags.Static);
             foreach (var conventionMethod in conventionMethods)
             {
                 if (ApiConventionMatcher.IsMatch(method, conventionMethod))
                 {
+            #pragma warning restore IL2075
                     return conventionMethod;
                 }
             }

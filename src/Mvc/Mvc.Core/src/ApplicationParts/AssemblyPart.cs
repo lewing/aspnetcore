@@ -30,5 +30,7 @@ public class AssemblyPart : ApplicationPart, IApplicationPartTypeProvider
     public override string Name => Assembly.GetName().Name!;
 
     /// <inheritdoc />
+    #pragma warning disable IL2026
     public IEnumerable<TypeInfo> Types => Assembly.DefinedTypes;
+    #pragma warning restore IL2026
 }

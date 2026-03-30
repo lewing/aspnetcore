@@ -59,7 +59,9 @@ public abstract class ModelMetadata : IEquatable<ModelMetadata?>, IModelMetadata
         InitializeTypeInformation();
         if (IsEnhancedModelMetadataSupported)
         {
+            #pragma warning disable IL2026
             InitializeDynamicTypeInformation();
+            #pragma warning restore IL2026
         }
     }
 

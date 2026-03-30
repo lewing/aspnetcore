@@ -51,6 +51,8 @@ public abstract class ApplicationPartFactory
                 typeof(ApplicationPartFactory)));
         }
 
+        #pragma warning disable IL2072
         return (ApplicationPartFactory)Activator.CreateInstance(type)!;
+        #pragma warning restore IL2072
     }
 }

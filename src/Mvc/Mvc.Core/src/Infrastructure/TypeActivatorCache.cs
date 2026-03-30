@@ -13,8 +13,10 @@ namespace Microsoft.AspNetCore.Mvc.Infrastructure;
 internal sealed class TypeActivatorCache : ITypeActivatorCache
 {
     private readonly Func<Type, ObjectFactory> _createFactory =
+        #pragma warning disable IL2067
         (type) => ActivatorUtilities.CreateFactory(type, Type.EmptyTypes);
     private readonly ConcurrentDictionary<Type, ObjectFactory> _typeActivatorCache =
+        #pragma warning restore IL2067
            new ConcurrentDictionary<Type, ObjectFactory>();
 
     /// <inheritdoc/>

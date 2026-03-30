@@ -249,8 +249,10 @@ public partial class CollectionModelBinder<TElement> : ICollectionModelBinder
     {
         if (_modelCreator == null)
         {
+            #pragma warning disable IL2067
             _modelCreator = Expression
                 .Lambda<Func<object>>(Expression.New(targetType))
+            #pragma warning restore IL2067
                 .Compile();
         }
 
@@ -386,11 +388,13 @@ public partial class CollectionModelBinder<TElement> : ICollectionModelBinder
                     bindingContext.OriginalModelName) : // This name may unfortunately be empty.
                 bindingContext.ModelName;
 
+            #pragma warning disable IL2026
             throw new InvalidOperationException(Resources.FormatModelBinding_ExceededMaxModelBindingCollectionSize(
                 name,
                 nameof(MvcOptions),
                 nameof(MvcOptions.MaxModelBindingCollectionSize),
                 _maxModelBindingCollectionSize,
+            #pragma warning restore IL2026
                 bindingContext.ModelMetadata.ElementType));
         }
 

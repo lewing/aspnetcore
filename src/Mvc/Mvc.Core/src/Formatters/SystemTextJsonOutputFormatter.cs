@@ -95,7 +95,9 @@ public class SystemTextJsonOutputFormatter : TextOutputFormatter
                 }
                 else
                 {
+                    #pragma warning disable IL2026
                     await JsonSerializer.SerializeAsync(responseWriter, context.Object, SerializerOptions, httpContext.RequestAborted);
+                    #pragma warning restore IL2026
                 }
             }
             catch (OperationCanceledException) when (context.HttpContext.RequestAborted.IsCancellationRequested) { }
@@ -115,7 +117,9 @@ public class SystemTextJsonOutputFormatter : TextOutputFormatter
                 }
                 else
                 {
+                    #pragma warning disable IL2026
                     await JsonSerializer.SerializeAsync(transcodingStream, context.Object, SerializerOptions);
+                    #pragma warning restore IL2026
                 }
 
                 await transcodingStream.FlushAsync();

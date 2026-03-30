@@ -72,17 +72,23 @@ public partial class SystemTextJsonInputFormatter : TextInputFormatter, IInputFo
             {
                 if (_useStreamJsonOverload)
                 {
+                    #pragma warning disable IL2026
                     model = await JsonSerializer.DeserializeAsync(httpContext.Request.Body, context.ModelType, SerializerOptions);
+                    #pragma warning restore IL2026
                 }
                 else
                 {
+                    #pragma warning disable IL2026
                     model = await JsonSerializer.DeserializeAsync(httpContext.Request.BodyReader, context.ModelType, SerializerOptions);
+                    #pragma warning restore IL2026
                 }
             }
             else
             {
                 inputStream = Encoding.CreateTranscodingStream(httpContext.Request.Body, encoding, Encoding.UTF8, leaveOpen: true);
+                #pragma warning disable IL2026
                 model = await JsonSerializer.DeserializeAsync(inputStream, context.ModelType, SerializerOptions);
+                #pragma warning restore IL2026
             }
         }
         catch (JsonException jsonException)

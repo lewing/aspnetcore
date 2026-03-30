@@ -35,7 +35,9 @@ public class AcceptedAtActionResult : ObjectResult
     {
         ActionName = actionName;
         ControllerName = controllerName;
+        #pragma warning disable IL2026
         RouteValues = routeValues == null ? null : new RouteValueDictionary(routeValues);
+        #pragma warning restore IL2026
         StatusCode = DefaultStatusCode;
     }
 

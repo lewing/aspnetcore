@@ -43,7 +43,9 @@ public class AcceptedAtRouteResult : ObjectResult
         : base(value)
     {
         RouteName = routeName;
+        #pragma warning disable IL2026
         RouteValues = routeValues == null ? null : new RouteValueDictionary(routeValues);
+        #pragma warning restore IL2026
         StatusCode = DefaultStatusCode;
     }
 

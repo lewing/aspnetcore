@@ -44,8 +44,10 @@ public static class MvcApplicationBuilderExtensions
 
         return app.UseMvc(routes =>
         {
+            #pragma warning disable IL2026
             routes.MapRoute(
                 name: "default",
+            #pragma warning restore IL2026
                 template: "{controller=Home}/{action=Index}/{id?}");
         });
     }

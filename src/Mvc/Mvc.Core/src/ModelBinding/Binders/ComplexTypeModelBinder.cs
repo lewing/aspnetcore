@@ -264,10 +264,12 @@ public partial class ComplexTypeModelBinder : IModelBinder
         // values because they will be overwritten if binding succeeds. Arrays are never reused because they
         // cannot be resized.
         object propertyModel = null;
+        #pragma warning disable IL2026
         if (property.PropertyGetter != null &&
             property.IsComplexType &&
             !property.ModelType.IsArray)
         {
+        #pragma warning restore IL2026
             propertyModel = property.PropertyGetter(bindingContext.Model);
         }
 
@@ -469,6 +471,7 @@ public partial class ComplexTypeModelBinder : IModelBinder
             // This binder would eventually fail to construct an instance of the struct as the Linq's NewExpression
             // compile fails to construct it.
             var modelType = bindingContext.ModelType;
+            #pragma warning disable IL2075
             if (modelType.IsAbstract || modelType.GetConstructor(Type.EmptyTypes) == null)
             {
                 // If the model is not a top-level object, we can't examine the defined constructor
@@ -476,6 +479,7 @@ public partial class ComplexTypeModelBinder : IModelBinder
                 // alternative.
                 if (!bindingContext.IsTopLevelObject)
                 {
+            #pragma warning restore IL2075
                     throw new InvalidOperationException(Resources.FormatComplexTypeModelBinder_NoParameterlessConstructor_ForType(modelType.FullName));
                 }
 
@@ -500,8 +504,10 @@ public partial class ComplexTypeModelBinder : IModelBinder
                 }
             }
 
+            #pragma warning disable IL2072
             _modelCreator = Expression
                 .Lambda<Func<object>>(Expression.New(bindingContext.ModelType))
+            #pragma warning restore IL2072
                 .Compile();
         }
 

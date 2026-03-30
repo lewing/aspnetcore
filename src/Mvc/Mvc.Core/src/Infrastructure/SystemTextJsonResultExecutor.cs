@@ -66,7 +66,9 @@ internal sealed partial class SystemTextJsonResultExecutor : IActionResultExecut
             try
             {
                 var responseWriter = response.BodyWriter;
+                #pragma warning disable IL2026
                 await JsonSerializer.SerializeAsync(responseWriter, value, objectType, jsonSerializerOptions, context.HttpContext.RequestAborted);
+                #pragma warning restore IL2026
             }
             catch (OperationCanceledException) when (context.HttpContext.RequestAborted.IsCancellationRequested) { }
         }
@@ -79,7 +81,9 @@ internal sealed partial class SystemTextJsonResultExecutor : IActionResultExecut
             ExceptionDispatchInfo? exceptionDispatchInfo = null;
             try
             {
+                #pragma warning disable IL2026
                 await JsonSerializer.SerializeAsync(transcodingStream, value, objectType, jsonSerializerOptions, context.HttpContext.RequestAborted);
+                #pragma warning restore IL2026
                 await transcodingStream.FlushAsync(context.HttpContext.RequestAborted);
             }
             catch (OperationCanceledException) when (context.HttpContext.RequestAborted.IsCancellationRequested)

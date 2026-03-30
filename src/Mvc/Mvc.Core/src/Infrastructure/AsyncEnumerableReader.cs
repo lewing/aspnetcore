@@ -53,10 +53,12 @@ internal sealed class AsyncEnumerableReader
     {
         if (!_asyncEnumerableConverters.TryGetValue(type, out reader))
         {
+            #pragma warning disable IL2067
             var enumerableType = ClosedGenericMatcher.ExtractGenericInterface(type, typeof(IAsyncEnumerable<>));
             if (enumerableType is null)
             {
                 // Not an IAsyncEnumerable<T>. Cache this result so we avoid reflection the next time we see this type.
+            #pragma warning restore IL2067
                 reader = null;
                 _asyncEnumerableConverters.TryAdd(type, reader);
             }
@@ -64,8 +66,10 @@ internal sealed class AsyncEnumerableReader
             {
                 var enumeratedObjectType = enumerableType.GetGenericArguments()[0];
 
+                #pragma warning disable IL2060
                 var converter = (Func<object, CancellationToken, Task<ICollection>>)Converter
                     .MakeGenericMethod(enumeratedObjectType)
+                #pragma warning restore IL2060
                     .CreateDelegate(typeof(Func<object, CancellationToken, Task<ICollection>>), this);
 
                 reader = converter;

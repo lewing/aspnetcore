@@ -19,8 +19,10 @@ public class ComplexObjectModelBinderProvider : IModelBinderProvider
         ArgumentNullException.ThrowIfNull(context);
 
         var metadata = context.Metadata;
+        #pragma warning disable IL2026
         if (metadata.IsComplexType && !metadata.IsCollectionType)
         {
+        #pragma warning restore IL2026
             var loggerFactory = context.Services.GetRequiredService<ILoggerFactory>();
             var logger = loggerFactory.CreateLogger(typeof(ComplexObjectModelBinder));
             var parameterBinders = GetParameterBinders(context);

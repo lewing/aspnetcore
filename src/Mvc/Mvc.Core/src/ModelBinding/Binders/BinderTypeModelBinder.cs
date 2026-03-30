@@ -33,7 +33,9 @@ public class BinderTypeModelBinder : IModelBinder
                 nameof(binderType));
         }
 
+        #pragma warning disable IL2067
         _factory = ActivatorUtilities.CreateFactory(binderType, Type.EmptyTypes);
+        #pragma warning restore IL2067
     }
 
     /// <inheritdoc />

@@ -68,7 +68,9 @@ internal sealed class DefaultCollectionValidationStrategy : IValidationStrategy
             key: metadata.ElementType!,
             valueFactory: (type) =>
             {
+                #pragma warning disable IL2060
                 var getEnumeratorMethod = _getEnumerator.MakeGenericMethod(type);
+                #pragma warning restore IL2060
                 var parameter = Expression.Parameter(typeof(object), "model");
                 var expression =
                     Expression.Lambda<Func<object, IEnumerator>>(

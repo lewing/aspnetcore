@@ -19,8 +19,10 @@ public class ComplexTypeModelBinderProvider : IModelBinderProvider
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        #pragma warning disable IL2026
         if (context.Metadata.IsComplexType && !context.Metadata.IsCollectionType)
         {
+        #pragma warning restore IL2026
             var propertyBinders = new Dictionary<ModelMetadata, IModelBinder>();
             for (var i = 0; i < context.Metadata.Properties.Count; i++)
             {

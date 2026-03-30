@@ -188,8 +188,10 @@ public sealed partial class ComplexObjectModelBinder : IModelBinder
             // This binder would eventually fail to construct an instance of the struct as the Linq's NewExpression
             // compile fails to construct it.
             var modelType = bindingContext.ModelType;
+            #pragma warning disable IL2075
             if (modelType.IsAbstract || modelType.GetConstructor(Type.EmptyTypes) == null)
             {
+            #pragma warning restore IL2075
                 var metadata = bindingContext.ModelMetadata;
                 switch (metadata.MetadataKind)
                 {
@@ -211,8 +213,10 @@ public sealed partial class ComplexObjectModelBinder : IModelBinder
                 }
             }
 
+            #pragma warning disable IL2072
             _modelCreator = Expression
                 .Lambda<Func<object>>(Expression.New(bindingContext.ModelType))
+            #pragma warning restore IL2072
                 .Compile();
         }
 
@@ -444,10 +448,12 @@ public sealed partial class ComplexObjectModelBinder : IModelBinder
         // values because they will be overwritten if binding succeeds. Arrays are never reused because they
         // cannot be resized.
         object? propertyModel = null;
+        #pragma warning disable IL2026
         if (property.PropertyGetter != null &&
             property.IsComplexType &&
             !property.ModelType.IsArray)
         {
+        #pragma warning restore IL2026
             propertyModel = property.PropertyGetter(bindingContext.Model!);
         }
 

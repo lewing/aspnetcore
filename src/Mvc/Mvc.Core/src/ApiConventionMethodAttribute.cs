@@ -46,8 +46,10 @@ public sealed class ApiConventionMethodAttribute : Attribute
 
     private static MethodInfo GetConventionMethod(Type conventionType, string methodName)
     {
+        #pragma warning disable IL2070
         var methods = conventionType.GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Where(method => method.Name == methodName)
+        #pragma warning restore IL2070
             .ToArray();
 
         if (methods.Length == 0)

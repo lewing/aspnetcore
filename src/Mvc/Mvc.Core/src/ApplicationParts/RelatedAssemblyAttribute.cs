@@ -127,6 +127,8 @@ public sealed class RelatedAssemblyAttribute : Attribute
             => _loadContext.LoadFromAssemblyName(assemblyName);
 
         public virtual Assembly LoadFromAssemblyPath(string assemblyPath)
+            #pragma warning disable IL2026
             => _loadContext.LoadFromAssemblyPath(assemblyPath);
+            #pragma warning restore IL2026
     }
 }

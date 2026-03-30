@@ -29,18 +29,22 @@ public class CollectionModelBinderProvider : IModelBinderProvider
         }
 
         // If the model type is ICollection<> then we can call its Add method, so we can always support it.
+        #pragma warning disable IL2072
         var collectionType = ClosedGenericMatcher.ExtractGenericInterface(modelType, typeof(ICollection<>));
         if (collectionType != null)
         {
+        #pragma warning restore IL2072
             return CreateInstance(context, collectionType);
         }
 
         // If the model type is IEnumerable<> then we need to know if we can assign a List<> to it, since
         // that's what we would create. (The cases handled here are IEnumerable<>, IReadOnlyCollection<> and
         // IReadOnlyList<>).
+        #pragma warning disable IL2072
         var enumerableType = ClosedGenericMatcher.ExtractGenericInterface(modelType, typeof(IEnumerable<>));
         if (enumerableType != null)
         {
+        #pragma warning restore IL2072
             var listType = typeof(List<>).MakeGenericType(enumerableType.GenericTypeArguments);
             if (modelType.IsAssignableFrom(listType))
             {
