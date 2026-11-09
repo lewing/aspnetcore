@@ -735,6 +735,92 @@ public class StaticAssetsIntegrationTests
         Directory.Delete(webRoot, true);
     }
 
+    [Theory]
+    [InlineData("dictionary", "dcz")]
+    [InlineData("other-dictionary", "gzip")]
+    [InlineData(null, "gzip")]
+    public async Task SelectsDictionaryCompressedAsset_OnlyWhenAvailableDictionaryMatches(string availableDictionary, string expectedEncoding)
+    {
+        var dictionaryHash = $":{GetEtag("dictionary")}:";
+        var manifest = new StaticAssetsManifest()
+        {
+            Version = 1
+        };
+        manifest.Endpoints.Add(CreateDescriptor("app.js", "identity", selectors: [], properties: [], encodingHeaders: []));
+        manifest.Endpoints.Add(CreateDescriptor(
+            "app.js.gz",
+            "gzip",
+            selectors: [new StaticAssetSelector("Content-Encoding", "gzip", "0.8")],
+            properties: [],
+            encodingHeaders: [new("Content-Encoding", "gzip"), new("Vary", "Accept-Encoding")]));
+        manifest.Endpoints.Add(CreateDescriptor(
+            "app.js.dcz",
+            "dcz",
+            selectors: [new StaticAssetSelector("Content-Encoding", "dcz", "0.9")],
+            properties: [new("dictionary-hash", dictionaryHash)],
+            encodingHeaders: [new("Content-Encoding", "dcz"), new("Vary", "Accept-Encoding"), new("Vary", "Available-Dictionary")]));
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
+        {
+            ApplicationName = "InMemory",
+            ContentRootPath = AppContext.BaseDirectory,
+            EnvironmentName = "Production",
+            WebRootPath = AppContext.BaseDirectory
+        });
+        builder.Environment.WebRootFileProvider = new TestFileProvider(
+        [
+            new("app.js", "identity", false),
+            new("app.js.gz", "gzip", false),
+            new("app.js.dcz", "dcz", false),
+        ]);
+        builder.WebHost.ConfigureServices(services => services.AddRouting());
+        builder.WebHost.UseTestServer();
+
+        var app = builder.Build();
+        app.UseRouting();
+        app.UseEndpoints(endpoints => endpoints.MapStaticAssets(manifest));
+        await app.StartAsync();
+
+        var message = new HttpRequestMessage(HttpMethod.Get, "/app.js");
+        message.Headers.TryAddWithoutValidation("Accept-Encoding", "gzip, br, zstd, dcz");
+        if (availableDictionary is not null)
+        {
+            message.Headers.TryAddWithoutValidation("Available-Dictionary", $":{GetEtag(availableDictionary)}:");
+        }
+
+        var response = await app.GetTestClient().SendAsync(message);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(expectedEncoding, Assert.Single(response.Content.Headers.ContentEncoding));
+        Assert.Equal(expectedEncoding, await response.Content.ReadAsStringAsync());
+        Assert.Contains("Accept-Encoding", response.Headers.Vary);
+        if (expectedEncoding == "dcz")
+        {
+            Assert.Contains("Available-Dictionary", response.Headers.Vary);
+        }
+
+        static StaticAssetDescriptor CreateDescriptor(
+            string assetPath,
+            string content,
+            StaticAssetSelector[] selectors,
+            StaticAssetProperty[] properties,
+            StaticAssetResponseHeader[] encodingHeaders) => new()
+            {
+                Route = "app.js",
+                AssetPath = assetPath,
+                Selectors = selectors,
+                Properties = properties,
+                ResponseHeaders = [
+                    new("Accept-Ranges", "bytes"),
+                    new("Content-Length", content.Length.ToString(CultureInfo.InvariantCulture)),
+                    new("Content-Type", "text/javascript"),
+                    new("ETag", $"\"{GetEtag(content)}\""),
+                    new("Last-Modified", new DateTimeOffset(2023, 03, 03, 0, 0, 0, TimeSpan.Zero).ToString("ddd, dd MMM yyyy HH:mm:ss 'GMT'", CultureInfo.InvariantCulture)),
+                    ..encodingHeaders
+                ]
+            };
+    }
+
     private string GetGzipEtag(string filePath)
     {
         using var stream = new MemoryStream();

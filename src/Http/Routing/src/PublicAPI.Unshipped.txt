@@ -5,3 +5,5 @@ Microsoft.AspNetCore.Routing.ShortCircuitAttribute
 Microsoft.AspNetCore.Routing.ShortCircuitAttribute.ShortCircuitAttribute() -> void
 Microsoft.AspNetCore.Routing.ShortCircuitAttribute.ShortCircuitAttribute(int statusCode) -> void
 Microsoft.AspNetCore.Routing.ShortCircuitAttribute.StatusCode.get -> int?
+Microsoft.AspNetCore.Routing.ContentEncodingMetadata.ContentEncodingMetadata(string! value, double quality, string? dictionaryHash) -> void
+Microsoft.AspNetCore.Routing.ContentEncodingMetadata.DictionaryHash.get -> string?

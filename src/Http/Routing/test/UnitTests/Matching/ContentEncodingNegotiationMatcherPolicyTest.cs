@@ -868,6 +868,18 @@ public class ContentEncodingNegotiationMatcherPolicyTest
             endpoints.Select(e => new RouteValueDictionary()).ToArray(),
             scores);
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("ZGljdGlvbmFyeQ==")]
+    [InlineData("::")]
+    [InlineData(":not base64:")]
+    [InlineData(":Z:")]
+    public void ContentEncodingMetadata_Throws_IfDictionaryHashIsNotAByteSequence(string dictionaryHash)
+    {
+        var exception = Assert.Throws<ArgumentException>(() => new ContentEncodingMetadata("dcz", 1.0, dictionaryHash));
+        Assert.Equal("dictionaryHash", exception.ParamName);
+    }
+
     private static Endpoint CreateEndpoint(string contentEncoding, double quality = 1.0d)
     {
         var endpoint = new Endpoint(

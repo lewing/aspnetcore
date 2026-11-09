@@ -26,15 +26,23 @@ internal sealed class ContentEncodingNegotiationMatcherPolicy : NegotiationMatch
         return metadata?.Quality;
     }
 
-    private protected override NegotiationPolicyJumpTable CreateTable(int exitDestination, (string negotiationValue, double quality, int destination)[] destinations, int noNegotiationHeaderDestination) => new ContentEncodingPolicyJumpTable(exitDestination, noNegotiationHeaderDestination, new ContentEncodingDestinationsLookUp(destinations));
+    private protected override byte[]? GetMetadataDictionaryHash(Endpoint endpoint) => endpoint.Metadata.GetMetadata<ContentEncodingMetadata>()?.DictionaryHashBytes;
+
+    private protected override ReadOnlySpan<byte> GetAvailableDictionary(HttpContext httpContext, Span<byte> buffer) =>
+        CompressionDictionaryHash.ReadAvailableDictionary(httpContext, buffer);
+
+    private protected override NegotiationPolicyJumpTable CreateTable(int exitDestination, (string negotiationValue, byte[]? dictionaryHash, double quality, int destination)[] destinations, int noNegotiationHeaderDestination) => new ContentEncodingPolicyJumpTable(exitDestination, noNegotiationHeaderDestination, new ContentEncodingDestinationsLookUp(destinations));
 
     internal sealed class ContentEncodingPolicyJumpTable(int anyContentEncodingDestination, int noContentEncodingDestination, ContentEncodingDestinationsLookUp destinations) : NegotiationPolicyJumpTable("Accept-Encoding", anyContentEncodingDestination, noContentEncodingDestination)
     {
         private readonly ContentEncodingDestinationsLookUp _destinations = destinations;
 
-        protected override int GetDestination(string? value) => _destinations.GetDestination(value);
+        protected override ReadOnlySpan<byte> GetAvailableDictionary(HttpContext httpContext, Span<byte> buffer) =>
+            _destinations.HasDictionaryDestinations ? CompressionDictionaryHash.ReadAvailableDictionary(httpContext, buffer) : default;
 
-        protected override double GetQuality(string? value) => _destinations.GetValueQuality(value);
+        protected override int GetDestination(string? value, ReadOnlySpan<byte> availableDictionary) => _destinations.GetDestination(value, availableDictionary);
+
+        protected override double GetQuality(string? value, ReadOnlySpan<byte> availableDictionary) => _destinations.GetValueQuality(value, availableDictionary);
     }
 
     internal sealed class ContentEncodingDestinationsLookUp
@@ -46,12 +54,26 @@ internal sealed class ContentEncodingNegotiationMatcherPolicy : NegotiationMatch
         private readonly int _identityDestination = -1;
         private readonly double _identityQuality;
         private readonly Dictionary<string, (int destination, double quality)>? _extraDestinations;
+        private readonly Dictionary<string, List<(byte[] dictionaryHash, int destination, double quality)>>? _dictionaryDestinations;
 
-        public ContentEncodingDestinationsLookUp((string contentEncoding, double quality, int destination)[] destinations)
+        public ContentEncodingDestinationsLookUp((string contentEncoding, byte[]? dictionaryHash, double quality, int destination)[] destinations)
         {
             for (var i = 0; i < destinations.Length; i++)
             {
-                var (contentEncoding, quality, destination) = destinations[i];
+                var (contentEncoding, dictionaryHash, quality, destination) = destinations[i];
+                if (dictionaryHash is not null)
+                {
+                    _dictionaryDestinations ??= new Dictionary<string, List<(byte[] dictionaryHash, int destination, double quality)>>(StringComparer.OrdinalIgnoreCase);
+                    if (!_dictionaryDestinations.TryGetValue(contentEncoding, out var dictionaryDestinations))
+                    {
+                        dictionaryDestinations = [];
+                        _dictionaryDestinations.Add(contentEncoding, dictionaryDestinations);
+                    }
+
+                    dictionaryDestinations.Add((dictionaryHash, destination, quality));
+                    continue;
+                }
+
                 switch (contentEncoding.ToLowerInvariant())
                 {
                     case "br":
@@ -74,8 +96,17 @@ internal sealed class ContentEncodingNegotiationMatcherPolicy : NegotiationMatch
             }
         }
 
-        public int GetDestination(string? negotiationValue)
+        public bool HasDictionaryDestinations => _dictionaryDestinations != null;
+
+        public int GetDestination(string? negotiationValue, ReadOnlySpan<byte> availableDictionary)
         {
+            // A destination that depends on a dictionary is only available when the request advertises that dictionary.
+            // Otherwise, the encoding is treated as unavailable so negotiation falls back to the next acceptable encoding.
+            if (TryGetDictionaryDestination(negotiationValue, availableDictionary, out var dictionaryDestination))
+            {
+                return dictionaryDestination.destination;
+            }
+
             // Specialcase the lookup based on the length of the negotiation value
             // to reduce the number of required comparisons needed to find a match.
             // The match will be validated after this selection.
@@ -100,8 +131,13 @@ internal sealed class ContentEncodingNegotiationMatcherPolicy : NegotiationMatch
             return -1;
         }
 
-        public double GetValueQuality(string? negotiationValue)
+        public double GetValueQuality(string? negotiationValue, ReadOnlySpan<byte> availableDictionary)
         {
+            if (TryGetDictionaryDestination(negotiationValue, availableDictionary, out var dictionaryDestination))
+            {
+                return dictionaryDestination.quality;
+            }
+
             var (matchedEncoding, quality) = negotiationValue?.Length switch
             {
                 2 => ("br", _brotliQuality),
@@ -121,6 +157,27 @@ internal sealed class ContentEncodingNegotiationMatcherPolicy : NegotiationMatch
             }
 
             return -1;
+        }
+
+        private bool TryGetDictionaryDestination(string? negotiationValue, ReadOnlySpan<byte> availableDictionary, out (int destination, double quality) result)
+        {
+            if (_dictionaryDestinations != null &&
+                negotiationValue != null &&
+                !availableDictionary.IsEmpty &&
+                _dictionaryDestinations.TryGetValue(negotiationValue, out var dictionaryDestinations))
+            {
+                foreach (var (dictionaryHash, destination, quality) in dictionaryDestinations)
+                {
+                    if (availableDictionary.SequenceEqual(dictionaryHash))
+                    {
+                        result = (destination, quality);
+                        return true;
+                    }
+                }
+            }
+
+            result = default;
+            return false;
         }
     }
 }

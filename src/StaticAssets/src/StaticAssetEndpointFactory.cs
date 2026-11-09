@@ -32,7 +32,7 @@ internal class StaticAssetEndpointFactory(IServiceProvider serviceProvider)
             switch (selector.Name)
             {
                 case "Content-Encoding":
-                    routeEndpointBuilder.Metadata.Add(new ContentEncodingMetadata(selector.Value, double.Parse(selector.Quality, CultureInfo.InvariantCulture)));
+                    routeEndpointBuilder.Metadata.Add(new ContentEncodingMetadata(selector.Value, double.Parse(selector.Quality, CultureInfo.InvariantCulture), GetDictionaryHash(resource)));
                     break;
                 default:
                     break;
@@ -59,5 +59,20 @@ internal class StaticAssetEndpointFactory(IServiceProvider serviceProvider)
         }
 
         return routeEndpointBuilder.Build();
+    }
+
+    // Assets encoded with a compression dictionary (RFC 9842) declare the dictionary hash so that routing only
+    // selects them when the request's Available-Dictionary header advertises the same dictionary.
+    private static string? GetDictionaryHash(StaticAssetDescriptor resource)
+    {
+        foreach (var property in resource.Properties)
+        {
+            if (string.Equals(property.Name, "dictionary-hash", StringComparison.OrdinalIgnoreCase))
+            {
+                return property.Value;
+            }
+        }
+
+        return null;
     }
 }

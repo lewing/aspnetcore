@@ -249,4 +249,7 @@
   <data name="RegexRouteContraint_NotConfigured" xml:space="preserve">
     <value>A route parameter uses the regex constraint, which isn't registered. If this application was configured using CreateSlimBuilder(...) or AddRoutingCore(...) then this constraint is not registered by default. To use the regex constraint, configure route options at app startup: services.Configure&lt;RouteOptions&gt;(options =&gt; options.SetParameterPolicy&lt;RegexInlineRouteConstraint&gt;("regex"));</value>
   </data>
+  <data name="ContentEncodingMetadata_InvalidDictionaryHash" xml:space="preserve">
+    <value>The dictionary hash must be a structured field byte sequence in the form ':&lt;base64&gt;:'.</value>
+  </data>
 </root>

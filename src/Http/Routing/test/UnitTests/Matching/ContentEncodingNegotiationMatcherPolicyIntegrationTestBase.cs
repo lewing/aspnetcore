@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +12,9 @@ namespace Microsoft.AspNetCore.Routing.Matching;
 // End-to-end tests for the content encoding negotiation matching functionality
 public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
 {
+    private static readonly string DictionaryHashA = ComputeDictionaryHash("dictionary-a");
+    private static readonly string DictionaryHashB = ComputeDictionaryHash("dictionary-b");
+
     protected abstract bool HasDynamicMetadata { get; }
 
     [Fact]
@@ -254,6 +259,115 @@ public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
         Assert.Equal(NegotiationMatcherPolicy<ContentEncodingMetadata>.Http406EndpointDisplayName, httpContext.GetEndpoint().DisplayName);
     }
 
+    [Fact]
+    public async Task Match_DictionaryEncoding_SelectsEndpoint_WhenAvailableDictionaryMatches()
+    {
+        var identityEndpoint = CreateEndpoint("/app.js");
+        var brEndpoint = CreateEndpoint("/app.js", contentEncoding: "br", quality: 0.8);
+        var dczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(identityEndpoint, brEndpoint, dczEndpoint);
+        var httpContext = CreateContext("/app.js", "gzip, br, zstd, dcz", DictionaryHashA);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, dczEndpoint);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-a-byte-sequence")]
+    [InlineData(":not base64:")]
+    [InlineData(":ZGlmZmVyZW50IGRpY3Rpb25hcnk=:")]
+    public async Task Match_DictionaryEncoding_FallsBackToNextEncoding_WhenAvailableDictionaryDoesNotMatch(string availableDictionary)
+    {
+        var identityEndpoint = CreateEndpoint("/app.js");
+        var brEndpoint = CreateEndpoint("/app.js", contentEncoding: "br", quality: 0.8);
+        var dczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(identityEndpoint, brEndpoint, dczEndpoint);
+        var httpContext = CreateContext("/app.js", "gzip, br, zstd, dcz", availableDictionary);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, brEndpoint);
+    }
+
+    [Fact]
+    public async Task Match_DictionaryEncoding_FallsBackToIdentity_WhenNoOtherEncodingIsAcceptable()
+    {
+        var identityEndpoint = CreateEndpoint("/app.js");
+        var dczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(identityEndpoint, dczEndpoint);
+        var httpContext = CreateContext("/app.js", "dcz", DictionaryHashB);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, identityEndpoint);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task Match_DictionaryEncoding_SelectsEndpointForAvailableDictionary_WhenMultipleDictionariesExist(int dictionaryIndex)
+    {
+        var identityEndpoint = CreateEndpoint("/app.js");
+        var brEndpoint = CreateEndpoint("/app.js", contentEncoding: "br", quality: 0.8);
+        var dczEndpointA = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+        var dczEndpointB = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashB);
+
+        var matcher = CreateMatcher(identityEndpoint, brEndpoint, dczEndpointA, dczEndpointB);
+        var httpContext = CreateContext("/app.js", "br, dcz", dictionaryIndex == 0 ? DictionaryHashA : DictionaryHashB);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, dictionaryIndex == 0 ? dczEndpointA : dczEndpointB);
+    }
+
+    [Fact]
+    public async Task Match_DictionaryEncoding_MatchesAvailableDictionaryWithoutPadding()
+    {
+        var brEndpoint = CreateEndpoint("/app.js", contentEncoding: "br", quality: 0.8);
+        var dczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(CreateEndpoint("/app.js"), brEndpoint, dczEndpoint);
+        var httpContext = CreateContext("/app.js", "br, dcz", " " + DictionaryHashA.Replace("=", "") + " ");
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, dczEndpoint);
+    }
+
+    [Fact]
+    public async Task Match_DictionaryEncoding_NotSelectedByWildcard()
+    {
+        var identityEndpoint = CreateEndpoint("/app.js");
+        var dczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(identityEndpoint, dczEndpoint);
+        var httpContext = CreateContext("/app.js", "*", DictionaryHashA);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, identityEndpoint);
+    }
+
+    [Fact]
+    public async Task Match_DictionaryEncoding_AcceptQualityWins_WhenDictionaryMatches()
+    {
+        var brEndpoint = CreateEndpoint("/app.js", contentEncoding: "br", quality: 0.9);
+        var dczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(CreateEndpoint("/app.js"), brEndpoint, dczEndpoint);
+        var httpContext = CreateContext("/app.js", "br, dcz;q=0.5", DictionaryHashA);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, brEndpoint);
+    }
+
     private static Matcher CreateMatcher(params RouteEndpoint[] endpoints)
     {
         var services = new ServiceCollection()
@@ -271,11 +385,15 @@ public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
         return builder.Build();
     }
 
-    internal static HttpContext CreateContext(string path, string acceptEncoding)
+    internal static HttpContext CreateContext(string path, string acceptEncoding, string availableDictionary = null)
     {
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Path = path;
         httpContext.Request.Headers["Accept-Encoding"] = acceptEncoding;
+        if (availableDictionary != null)
+        {
+            httpContext.Request.Headers["Available-Dictionary"] = availableDictionary;
+        }
 
         return httpContext;
     }
@@ -286,12 +404,13 @@ public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
         object constraints = null,
         int order = 0,
         string contentEncoding = null,
-        double quality = 1.0)
+        double quality = 1.0,
+        string dictionaryHash = null)
     {
         var metadata = new List<object>();
         if (contentEncoding != null)
         {
-            metadata.Add(new ContentEncodingMetadata(contentEncoding, quality));
+            metadata.Add(new ContentEncodingMetadata(contentEncoding, quality, dictionaryHash));
         }
 
         if (HasDynamicMetadata)
@@ -299,7 +418,7 @@ public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
             metadata.Add(new DynamicEndpointMetadata());
         }
 
-        var displayName = "endpoint: " + template + " " + (contentEncoding ?? "identity") + " q=" + quality;
+        var displayName = "endpoint: " + template + " " + (contentEncoding ?? "identity") + " q=" + quality + " dictionary=" + dictionaryHash;
         return new RouteEndpoint(
             TestConstants.EmptyRequestDelegate,
             RoutePatternFactory.Parse(template, defaults, constraints),
@@ -307,6 +426,9 @@ public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
             new EndpointMetadataCollection(metadata),
             displayName);
     }
+
+    private static string ComputeDictionaryHash(string dictionary) =>
+        ":" + Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(dictionary))) + ":";
 
     private class DynamicEndpointMetadata : IDynamicEndpointMetadata
     {

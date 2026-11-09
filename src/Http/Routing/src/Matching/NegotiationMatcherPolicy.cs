@@ -51,6 +51,14 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
 
     private protected abstract double? GetMetadataQuality(Endpoint endpoint);
 
+    // Returns the hash of the compression dictionary the endpoint requires (RFC 9842), or null if the endpoint
+    // doesn't depend on a dictionary. Endpoints with a dictionary hash only match when the request advertises
+    // the same dictionary.
+    private protected virtual byte[]? GetMetadataDictionaryHash(Endpoint endpoint) => null;
+
+    // Returns the dictionary hash advertised by the request, or an empty span if there isn't a valid one.
+    private protected virtual ReadOnlySpan<byte> GetAvailableDictionary(HttpContext httpContext, Span<byte> buffer) => default;
+
     // We iterate over the list of candidates starting with a quality of 0.
     // If we are able to match a candidate with one of the values from the header
     // the one with the highest matching quality wins.
@@ -103,6 +111,9 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
         // the Score field, which would corrupt a tier-boundary check that reads candidates[scoreTierStart].Score.
         var scoreTierStart = 0;
         var currentTierScore = int.MinValue;
+        Span<byte> availableDictionaryBuffer = stackalloc byte[CompressionDictionaryHash.MaxHashLength];
+        scoped ReadOnlySpan<byte> availableDictionary = default;
+        var availableDictionaryRead = false;
         for (var i = 0; i < candidates.Count; i++)
         {
             if (!candidates.IsValidCandidate(i))
@@ -130,11 +141,19 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
             }
             metadata ??= DefaultNegotiationValue;
 
+            var dictionaryHash = GetMetadataDictionaryHash(candidate.Endpoint);
+            if (dictionaryHash is not null && !availableDictionaryRead)
+            {
+                availableDictionary = GetAvailableDictionary(httpContext, availableDictionaryBuffer);
+                availableDictionaryRead = true;
+            }
+
             var found = false;
             for (var j = 0; j < values.Count; j++)
             {
                 var value = values[j];
-                if (MemoryExtensions.Equals(metadata.AsSpan(), value.Value.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                if (MemoryExtensions.Equals(metadata.AsSpan(), value.Value.AsSpan(), StringComparison.OrdinalIgnoreCase) &&
+                    (dictionaryHash is null || availableDictionary.SequenceEqual(dictionaryHash)))
                 {
                     found = true;
                     EvaluateCandidate(candidates, ref bestMatchIndex, ref bestQualitySoFar, ref bestEndpointQualitySoFar, i, scoreTierStart, value);
@@ -259,14 +278,16 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
         //
         // For now we're just building up the set of keys. We don't add any endpoints
         // to lists now because we don't want ordering problems.
-        var edges = new Dictionary<string, List<Endpoint>>(StringComparer.OrdinalIgnoreCase);
+        // Endpoints that depend on a compression dictionary get their own edge per dictionary, so that the jump table
+        // can check the dictionary advertised by the request before selecting them.
+        var edges = new Dictionary<EdgeKey, List<Endpoint>>(EdgeKeyComparer.Instance);
         for (var i = 0; i < endpoints.Count; i++)
         {
             var endpoint = endpoints[i];
-            var metadata = GetMetadataValue(endpoint) ?? DefaultNegotiationValue;
-            if (!edges.TryGetValue(metadata, out var _))
+            var key = GetEdgeKey(endpoint);
+            if (!edges.TryGetValue(key, out var _))
             {
-                edges.Add(metadata, []);
+                edges.Add(key, []);
             }
         }
 
@@ -275,8 +296,8 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
         for (var i = 0; i < endpoints.Count; i++)
         {
             var endpoint = endpoints[i];
-            var metadata = GetMetadataValue(endpoint) ?? DefaultNegotiationValue;
-            if (string.Equals(metadata, DefaultNegotiationValue, StringComparison.OrdinalIgnoreCase))
+            var key = GetEdgeKey(endpoint);
+            if (string.Equals(key.Value, DefaultNegotiationValue, StringComparison.OrdinalIgnoreCase))
             {
                 // This means that this endpoint does not specify a negotiation value, a default of identity is assumed.
                 // Which means that this endpoint is always a candidate.
@@ -287,25 +308,26 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
             }
             else
             {
-                var endpointsForType = edges[metadata];
+                var endpointsForType = edges[key];
                 endpointsForType.Add(endpoint);
             }
         }
 
         // If after we're done there isn't any endpoint that accepts the default encoding, then we'll synthesize an
         // endpoint that always returns a 406.
-        if (!edges.TryGetValue(DefaultNegotiationValue, out var anyEndpoints))
+        var defaultKey = new EdgeKey(DefaultNegotiationValue, null);
+        if (!edges.TryGetValue(defaultKey, out var anyEndpoints))
         {
             anyEndpoints = [CreateRejectionEndpoint()];
-            edges.Add(DefaultNegotiationValue, anyEndpoints);
+            edges.Add(defaultKey, anyEndpoints);
 
             // Add a node to use when there is no negotiation header.
-            edges.Add(string.Empty, anyEndpoints);
+            edges.Add(new EdgeKey(string.Empty, null), anyEndpoints);
         }
         else
         {
             // If there is an endpoint that accepts an then it is also used when there is no content type
-            edges.Add(string.Empty, anyEndpoints);
+            edges.Add(new EdgeKey(string.Empty, null), anyEndpoints);
         }
 
         var result = new PolicyNodeEdge[edges.Count];
@@ -314,7 +336,7 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
         {
             result[index] = new PolicyNodeEdge(
                 // Metadata quality is 0 for the edges that don't have metadata as we prefer serving from the endpoints that have metadata
-                new NegotiationEdgeKey(kvp.Key, CalculateEndpointQualities(kvp.Value)),
+                new NegotiationEdgeKey(kvp.Key.Value, kvp.Key.DictionaryHash, CalculateEndpointQualities(kvp.Value)),
                 kvp.Value);
             index++;
         }
@@ -332,16 +354,59 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
         return result;
     }
 
+    private EdgeKey GetEdgeKey(Endpoint endpoint)
+    {
+        var value = GetMetadataValue(endpoint) ?? DefaultNegotiationValue;
+        return string.Equals(value, DefaultNegotiationValue, StringComparison.OrdinalIgnoreCase) ?
+            new EdgeKey(value, null) :
+            new EdgeKey(value, GetMetadataDictionaryHash(endpoint));
+    }
+
+    private readonly record struct EdgeKey(string Value, byte[]? DictionaryHash);
+
+    private sealed class EdgeKeyComparer : IEqualityComparer<EdgeKey>
+    {
+        public static readonly EdgeKeyComparer Instance = new();
+
+        public bool Equals(EdgeKey x, EdgeKey y) =>
+            string.Equals(x.Value, y.Value, StringComparison.OrdinalIgnoreCase) &&
+            (x.DictionaryHash, y.DictionaryHash) switch
+            {
+                (null, null) => true,
+                (not null, not null) => x.DictionaryHash.AsSpan().SequenceEqual(y.DictionaryHash),
+                _ => false,
+            };
+
+        public int GetHashCode(EdgeKey obj)
+        {
+            var hashCode = new HashCode();
+            hashCode.Add(obj.Value, StringComparer.OrdinalIgnoreCase);
+            if (obj.DictionaryHash is not null)
+            {
+                hashCode.AddBytes(obj.DictionaryHash);
+            }
+
+            return hashCode.ToHashCode();
+        }
+    }
+
     internal class NegotiationEdgeKey
     {
         public NegotiationEdgeKey(string negotiationValue, double[] endpointsQuality)
+            : this(negotiationValue, dictionaryHash: null, endpointsQuality)
+        {
+        }
+
+        public NegotiationEdgeKey(string negotiationValue, byte[]? dictionaryHash, double[] endpointsQuality)
         {
             NegotiationValue = negotiationValue;
+            DictionaryHash = dictionaryHash;
             EndpointsQuality = endpointsQuality;
             Array.Sort(EndpointsQuality);
         }
 
         public string NegotiationValue { get; }
+        public byte[]? DictionaryHash { get; }
         public double[] EndpointsQuality { get; }
     }
 
@@ -359,12 +424,12 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
     {
         ArgumentNullException.ThrowIfNull(edges);
 
-        var destinations = new (string negotiationValue, double quality, int destination)[edges.Count];
+        var destinations = new (string negotiationValue, byte[]? dictionaryHash, double quality, int destination)[edges.Count];
         for (var i = 0; i < edges.Count; i++)
         {
             var e = edges[i];
             var key = (NegotiationEdgeKey)e.State;
-            destinations[i] = (negotiationValue: key.NegotiationValue, quality: Max(key.EndpointsQuality), destination: e.Destination);
+            destinations[i] = (negotiationValue: key.NegotiationValue, dictionaryHash: key.DictionaryHash, quality: Max(key.EndpointsQuality), destination: e.Destination);
         }
 
         // If any edge matches all negotiation values, then treat that as the 'exit'. This will
@@ -372,7 +437,7 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
         var noNegotiationHeaderDestination = -1;
         for (var i = 0; i < destinations.Length; i++)
         {
-            if (destinations[i].negotiationValue == DefaultNegotiationValue)
+            if (destinations[i].negotiationValue == DefaultNegotiationValue && destinations[i].dictionaryHash is null)
             {
                 exitDestination = destinations[i].destination;
             }
@@ -401,7 +466,7 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
         return result;
     }
 
-    private protected abstract NegotiationPolicyJumpTable CreateTable(int exitDestination, (string negotiationValue, double quality, int destination)[] destinations, int noNegotiationHeaderDestination);
+    private protected abstract NegotiationPolicyJumpTable CreateTable(int exitDestination, (string negotiationValue, byte[]? dictionaryHash, double quality, int destination)[] destinations, int noNegotiationHeaderDestination);
 
     private sealed class NegotiationMetadataEndpointComparer : EndpointMetadataComparer<TNegotiateMetadata>
     {
@@ -435,6 +500,9 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
                 return _noNegotiationValueDestination;
             }
 
+            Span<byte> availableDictionaryBuffer = stackalloc byte[CompressionDictionaryHash.MaxHashLength];
+            var availableDictionary = GetAvailableDictionary(httpContext, availableDictionaryBuffer);
+
             var currentQuality = 0.0d;
             string? currentSelectedValue = null;
             var selectedDestination = _defaultNegotiationValueDestination;
@@ -459,7 +527,7 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
                 var valueToken = value.Value.Value ?? null;
                 if (valueQuality > currentQuality)
                 {
-                    var newDestination = GetDestination(valueToken);
+                    var newDestination = GetDestination(valueToken, availableDictionary);
                     if (newDestination != -1)
                     {
                         currentSelectedValue = valueToken;
@@ -471,11 +539,11 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
 
                 if (valueQuality == currentQuality)
                 {
-                    var currentServerQuality = GetQuality(currentSelectedValue);
-                    var newServerQuality = GetQuality(valueToken);
+                    var currentServerQuality = GetQuality(currentSelectedValue, availableDictionary);
+                    var newServerQuality = GetQuality(valueToken, availableDictionary);
                     if (newServerQuality > currentServerQuality)
                     {
-                        var newDestination = GetDestination(valueToken);
+                        var newDestination = GetDestination(valueToken, availableDictionary);
                         if (newDestination != -1)
                         {
                             currentSelectedValue = valueToken;
@@ -490,8 +558,11 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
             return selectedDestination;
         }
 
-        protected abstract int GetDestination(string? value);
+        // Returns the dictionary hash advertised by the request, or an empty span if there isn't a valid one.
+        protected virtual ReadOnlySpan<byte> GetAvailableDictionary(HttpContext httpContext, Span<byte> buffer) => default;
 
-        protected abstract double GetQuality(string? value);
+        protected abstract int GetDestination(string? value, ReadOnlySpan<byte> availableDictionary);
+
+        protected abstract double GetQuality(string? value, ReadOnlySpan<byte> availableDictionary);
     }
 }
