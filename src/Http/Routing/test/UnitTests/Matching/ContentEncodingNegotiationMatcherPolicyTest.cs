@@ -880,6 +880,15 @@ public class ContentEncodingNegotiationMatcherPolicyTest
         Assert.Equal("dictionaryHash", exception.ParamName);
     }
 
+    [Theory]
+    [InlineData("identity")]
+    [InlineData("IDENTITY")]
+    public void ContentEncodingMetadata_Throws_IfIdentityHasDictionaryHash(string contentEncoding)
+    {
+        var exception = Assert.Throws<ArgumentException>(() => new ContentEncodingMetadata(contentEncoding, 1.0, ":ZGljdGlvbmFyeQ==:"));
+        Assert.Equal("dictionaryHash", exception.ParamName);
+    }
+
     private static Endpoint CreateEndpoint(string contentEncoding, double quality = 1.0d)
     {
         var endpoint = new Endpoint(

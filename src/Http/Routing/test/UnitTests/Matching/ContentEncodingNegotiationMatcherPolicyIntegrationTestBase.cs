@@ -280,6 +280,7 @@ public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
     [InlineData("not-a-byte-sequence")]
     [InlineData(":not base64:")]
     [InlineData(":ZGlmZmVyZW50IGRpY3Rpb25hcnk=:")]
+    [InlineData(":ZGlmZmVyZW50IGRpY3Rpb25hcnk=:junk")]
     public async Task Match_DictionaryEncoding_FallsBackToNextEncoding_WhenAvailableDictionaryDoesNotMatch(string availableDictionary)
     {
         var identityEndpoint = CreateEndpoint("/app.js");
@@ -338,6 +339,47 @@ public abstract class ContentEncodingNegotiationMatcherPolicyIntegrationTestBase
         await matcher.MatchAsync(httpContext);
 
         MatcherAssert.AssertMatch(httpContext, dczEndpoint);
+    }
+
+    [Fact]
+    public async Task Match_DictionaryEncoding_IgnoresStructuredFieldParametersOnAvailableDictionary()
+    {
+        var dczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(dczEndpoint);
+        var httpContext = CreateContext("/app.js", "dcz", DictionaryHashA + ";v=1");
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, dczEndpoint);
+    }
+
+    [Fact]
+    public async Task Match_DictionaryEncoding_LiteralEndpointWithSameEncodingPreserved_WhenCatchAllMatchesDictionary()
+    {
+        var literalEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz");
+        var catchAllDcz = CreateEndpoint("/{**path}", contentEncoding: "dcz", dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(literalEndpoint, catchAllDcz);
+        var httpContext = CreateContext("/app.js", "dcz", DictionaryHashA);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, literalEndpoint);
+    }
+
+    [Fact]
+    public async Task Match_DictionaryEncoding_EndpointQualityAppliesAcrossDictionaryAndNonDictionaryEndpoints()
+    {
+        var plainDczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.9);
+        var dictionaryDczEndpoint = CreateEndpoint("/app.js", contentEncoding: "dcz", quality: 0.5, dictionaryHash: DictionaryHashA);
+
+        var matcher = CreateMatcher(plainDczEndpoint, dictionaryDczEndpoint);
+        var httpContext = CreateContext("/app.js", "dcz", DictionaryHashA);
+
+        await matcher.MatchAsync(httpContext);
+
+        MatcherAssert.AssertMatch(httpContext, plainDczEndpoint);
     }
 
     [Fact]

@@ -25,6 +25,9 @@ public sealed class ContentEncodingMetadata(string value, double quality) : INeg
     /// encoding doesn't depend on a dictionary.
     /// The endpoint is only selected when the <c>Available-Dictionary</c> request header contains the same hash.
     /// </param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="dictionaryHash"/> isn't a structured field byte sequence, or <paramref name="value"/> is <c>identity</c>.
+    /// </exception>
     /// <example>
     /// <code>
     /// endpointBuilder.Metadata.Add(new ContentEncodingMetadata("dcz", 1.0, ":pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:"));
@@ -36,6 +39,11 @@ public sealed class ContentEncodingMetadata(string value, double quality) : INeg
         if (dictionaryHash is null)
         {
             return;
+        }
+
+        if (string.Equals(value, "identity", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(Resources.ContentEncodingMetadata_IdentityCannotHaveDictionaryHash, nameof(dictionaryHash));
         }
 
         Span<byte> buffer = stackalloc byte[CompressionDictionaryHash.MaxHashLength];

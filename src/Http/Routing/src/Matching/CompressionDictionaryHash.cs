@@ -23,12 +23,25 @@ internal static class CompressionDictionaryHash
 
         // Structured field parsing discards leading and trailing spaces.
         value = value.Trim(' ');
-        if (value.Length < 3 || value[0] != ':' || value[^1] != ':')
+        if (value.Length < 3 || value[0] != ':')
         {
             return false;
         }
 
-        var base64 = value[1..^1];
+        var end = value[1..].IndexOf(':') + 1;
+        if (end <= 1)
+        {
+            return false;
+        }
+
+        // A structured field item can carry parameters (";key=value") after the bare item. They don't affect the hash.
+        var parameters = value[(end + 1)..];
+        if (!parameters.IsEmpty && parameters[0] != ';')
+        {
+            return false;
+        }
+
+        var base64 = value[1..end];
         if (base64.Length > MaxBase64Length || base64.ContainsAny(" \t\r\n"))
         {
             return false;

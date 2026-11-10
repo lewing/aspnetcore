@@ -310,6 +310,19 @@ internal abstract class NegotiationMatcherPolicy<TNegotiateMetadata> : MatcherPo
             {
                 var endpointsForType = edges[key];
                 endpointsForType.Add(endpoint);
+
+                if (key.DictionaryHash is null)
+                {
+                    // An endpoint that doesn't depend on a dictionary is also a candidate when the request selects
+                    // a dictionary-specific edge for the same value.
+                    foreach (var edge in edges)
+                    {
+                        if (edge.Key.DictionaryHash is not null && string.Equals(edge.Key.Value, key.Value, StringComparison.OrdinalIgnoreCase))
+                        {
+                            edge.Value.Add(endpoint);
+                        }
+                    }
+                }
             }
         }
 

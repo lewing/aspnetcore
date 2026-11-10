@@ -252,4 +252,7 @@
   <data name="ContentEncodingMetadata_InvalidDictionaryHash" xml:space="preserve">
     <value>The dictionary hash must be a structured field byte sequence in the form ':&lt;base64&gt;:'.</value>
   </data>
+  <data name="ContentEncodingMetadata_IdentityCannotHaveDictionaryHash" xml:space="preserve">
+    <value>The 'identity' content encoding can't have a dictionary hash.</value>
+  </data>
 </root>
